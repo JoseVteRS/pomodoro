@@ -1,137 +1,170 @@
 'use client'
 
-import { Break } from "@/components/Break";
-import { ProgressBar } from "@/components/ProgressBar";
-import { Session } from "@/components/Session";
+import Alarm from "@/components/Alarm";
+import ModalSettings from "@/components/ModalSettings";
+import Navigation from "@/components/Navigation";
 import { Timer } from "@/components/Timer";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
 
 
 export default function Home() {
-  const [breakLength, setBreakLength] = useState(5 * 60);
-  const [sessionLength, setSessionLength] = useState(25 * 60);
-  const [mode, setMode] = useState("session");
-  const [timeLeft, setTimeLeft] = useState();
-  const [isActive, setIsActive] = useState(false);
-  const [timeSpent, setTimeSpent] = useState(0);
-  // const [beep] = useState(
-  //   new Audio("https://freesound.org/data/previews/523/523960_350703-lq.mp3")
-  // );
-  const [beepPlaying, setBeepPlaying] = useState(false);
 
-  /* ########## USE EFFECT HOOKS ########## */
-  useEffect(() => {
-    setTimeLeft(mode == "session" ? sessionLength * 1000 : breakLength * 1000);
-  }, [sessionLength, breakLength]);
 
-  useEffect(() => {
-    let interval = null;
+  const [pomodoro, setPomodoro] = useState(25)
+  const [shortBreak, setshortBreak] = useState(5)
+  const [longBreak, setLongBreak] = useState(10)
+  const [stage, setStage] = useState(0)
+  const [seconds, setSeconds] = useState(0)
+  const [consumedSeconds, setConsumedSeconds] = useState(0)
+  const [ticking, setTicking] = useState(false)
+  const [isTimeUp, setIsTimeUp] = useState(false)
 
-    if (isActive && timeLeft > 1) {
-      setTimeLeft(
-        mode == "session"
-          ? sessionLength * 1000 - timeSpent
-          : breakLength * 1000 - timeSpent
-      );
+  const [openSettings, setOpenSettings] = useState(false)
 
-      interval = setInterval(() => {
-        setTimeSpent((timeSpent) => timeSpent + 1000);
-      }, 1000);
+
+  const alarmRef = useRef()
+  const pomodoroRef = useRef()
+  const shortBreakRef = useRef()
+  const longBreakRef = useRef()
+
+  const updateTimeDefaultValue = () => {
+    setPomodoro(pomodoroRef.current.value)
+    setshortBreak(shortBreakRef.current.value)
+    setLongBreak(longBreakRef.current.value)
+    setOpenSettings(false)
+    setSeconds(0)
+    setConsumedSeconds(0)
+  }
+
+
+  const switchStage = (index: number) => {
+    const isYes = consumedSeconds && stage !== index
+      ? confirm('Are you sure you want to switch stage?')
+      : false
+
+    if (isYes) {
+      reset()
+      setStage(index)
+    } else if (!consumedSeconds) {
+      setStage(index)
+    }
+
+  }
+
+  const getTickingTime = () => {
+
+    const timeStage = {
+      0: pomodoro,
+      1: shortBreak,
+      2: longBreak
+    }
+
+    return timeStage[stage]
+  }
+
+  const updateMinute = () => {
+    const updateStage = {
+      0: setPomodoro,
+      1: setshortBreak,
+      2: setLongBreak
+    }
+
+    return updateStage[stage]
+  }
+
+  const reset = () => {
+    setConsumedSeconds(0)
+    setTicking(false)
+    setSeconds(0)
+    updateTimeDefaultValue()
+  }
+
+  const timeUp = () => {
+    reset()
+    setIsTimeUp(true)
+    alarmRef.current.play()
+  }
+
+  const clockTicking = () => {
+    const minutes = getTickingTime()
+    const setMinutes = updateMinute()
+
+    if (minutes === 0 && seconds === 0) {
+      timeUp()
+    } else if (seconds === 0) {
+      setMinutes((minute: number) => minute - 1)
+      setSeconds(59)
     } else {
-      clearInterval(interval);
-    }
-    if (timeLeft === 0) {
-      // beep.play();
-      setBeepPlaying(true);
-      setTimeSpent(0);
-      setMode((mode) => (mode == "session" ? "break" : "session"));
-      setTimeLeft(
-        mode == "session" ? sessionLength * 1000 : breakLength * 1000
-      );
-    }
-    return () => clearInterval(interval);
-  }, [isActive, timeSpent]);
-
-  // useEffect(() => {
-  //   beep.addEventListener("ended", () => setBeepPlaying(false));
-  //   return () => {
-  //     beep.addEventListener("ended", () => setBeepPlaying(false));
-  //   };
-  // }, []);
-
-  /* ########## FUNCTIONS ########## */
-  function decrementBreakLength() {
-    const decreasedBreakLength = breakLength - 60 > 60 ? breakLength - 60 : 60;
-    setBreakLength(decreasedBreakLength);
-  }
-
-  function incrementBreakLength() {
-    const incrementedBreakLength =
-      breakLength + 60 <= 60 * 60 ? breakLength + 60 : 60 * 60;
-    setBreakLength(incrementedBreakLength);
-  }
-
-  function decrementSessionLength() {
-    const decreasedSessionLength =
-      sessionLength - 60 > 60 ? sessionLength - 60 : 60;
-
-    setSessionLength(decreasedSessionLength);
-  }
-
-  function incrementSessionLength() {
-    const incrementedSessionLength =
-      sessionLength + 60 <= 60 * 60 ? sessionLength + 60 : 60;
-    setSessionLength(incrementedSessionLength);
-  }
-
-  function reset() {
-    setBreakLength(5 * 60);
-    setSessionLength(25 * 60);
-    setTimeLeft(mode == "session" ? sessionLength * 1000 : breakLength * 1000);
-
-    if (isActive) {
-      setIsActive(false);
-      setTimeSpent(0);
-    }
-
-    if (beepPlaying) {
-      // beep.pause();
-      // beep.currentTime = 0;
-      setBeepPlaying(false);
+      setSeconds((seconds: number) => seconds - 1)
     }
   }
 
-  function toggleIsActive() {
-    setIsActive(!isActive);
+
+  const muteAlarm = () => {
+    alarmRef.current.pause()
+    alarmRef.current.currentTime = 0
   }
+
+  const startTimer = () => {
+    setIsTimeUp(false)
+    muteAlarm()
+    setTicking((ticking) => !ticking)
+  }
+
+  useEffect(() => {
+
+    window.onbeforeunload = () => {
+      return consumedSeconds ? 'Show warning' : null
+    }
+
+    const timer = setInterval(() => {
+      if (ticking) {
+        setConsumedSeconds((seconds: number) => seconds + 1)
+        clockTicking()
+      }
+    }, 1000)
+
+    return () => {
+      clearInterval(timer)
+    }
+  }, [seconds, pomodoro, shortBreak, longBreak, ticking])
+
+
+
 
   return (
-    <main className="w-screen h-screen  bg-neutral-900">
-      
+    <main className=" min-h-screen bg-gray-dark">
 
-      <div className="buttons">
-        <button onClick={toggleIsActive} id="start_stop" className="bg-yellow-500 py-4 px-6 text-black font-bold rounded">
-          {isActive ? "Pause" : "Start"}
-        </button>
-        <button onClick={reset} id="reset" className="bg-red-500 py-4 px-6 text-white font-bold rounded">
-          Reset
-        </button>
+      <div className="max-w-2xl mx-auto" >
+        <Navigation setOpenSettings={setOpenSettings} />
+        <Timer
+          stage={stage}
+          switchStage={switchStage}
+          getTickingTime={getTickingTime}
+          seconds={seconds}
+          ticking={ticking}
+          startTimer={startTimer}
+          muteAlarm={muteAlarm}
+          isTimeUp={isTimeUp}
+          reset={reset}
+        />
       </div>
 
-      <ProgressBar time={timeLeft} totalTime={sessionLength }>
-        <Timer time={timeLeft} mode={mode} />
-      </ProgressBar>
 
-      <Break
-        increment={incrementBreakLength}
-        decrement={decrementBreakLength}
-        length={breakLength}
-      />
-      <Session
-        increment={incrementSessionLength}
-        decrement={decrementSessionLength}
-        length={sessionLength}
-      />
+      <Alarm ref={alarmRef} />
+      {
+        openSettings && (
+          <ModalSettings
+            openSettings={openSettings}
+            setOpenSettings={setOpenSettings}
+            pomodoroRef={pomodoroRef}
+            shortBreakRef={shortBreakRef}
+            longBreakRef={longBreakRef}
+            updateTimeDefaultValue={updateTimeDefaultValue}
+          />
+        )}
+
     </main>
   )
 }
